@@ -6,6 +6,9 @@ const SCHEDULE_CONFIG = {
     salida_final: { time: '17:30', label: 'Salida Final', window: [16, 1, 19, 0] } // 16:01 - 19:00
 };
 
+// Tolerancia en minutos para registros de asistencia
+const TOLERANCE_MINUTES = 5;
+
 const STORAGE_KEYS = {
     employees: 'attendance_employees',
     records: 'attendance_records',
@@ -170,7 +173,7 @@ function saveAttendanceRecords(records) {
 /**
  * Add new employee
  */
-async function addEmployee(name, employeeId, position, area, phone) {
+async function addEmployee(name, employeeId, position, area, phone, dni) {
     const employees = getEmployees();
 
     // Check if employee ID already exists
@@ -180,10 +183,17 @@ async function addEmployee(name, employeeId, position, area, phone) {
         return false;
     }
 
+    // Check if DNI already exists
+    if (dni && employees.find(emp => emp.dni === dni)) {
+        showToast('El DNI ya está registrado', 'error');
+        return false;
+    }
+
     const newEmployee = {
         id: Date.now().toString(),
         name,
         employeeId,
+        dni,
         position,
         area,
         phone,
@@ -1094,8 +1104,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const position = document.getElementById('employeePosition').value.trim();
         const area = document.getElementById('employeeArea').value;
         const phone = document.getElementById('employeePhone').value.trim();
+        const dni = document.getElementById('employeeDni')?.value.trim() || '';
 
-        if (await addEmployee(name, employeeId, position, area, phone)) {
+        if (await addEmployee(name, employeeId, position, area, phone, dni)) {
             // Clear form
             e.target.reset();
 
@@ -1148,6 +1159,7 @@ async function saveEmployeeToDatabase(employee) {
             .from('employees')
             .insert([{
                 employee_id: employee.employeeId,
+                dni: employee.dni,
                 name: employee.name,
                 position: employee.position,
                 area: employee.area,
@@ -1388,3 +1400,10 @@ window.showEmployeeProfile = showEmployeeProfile;
 window.closeProfileModal = closeProfileModal;
 window.calculateAbsenceDays = calculateAbsenceDays;
 window.searchEmployees = searchEmployees;
+
+// Admin logout function
+function logoutAdmin() {
+    sessionStorage.removeItem('isAdmin');
+    window.location.href = 'index.html';
+}
+window.logoutAdmin = logoutAdmin;

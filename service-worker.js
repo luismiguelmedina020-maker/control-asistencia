@@ -1,11 +1,15 @@
 // Service Worker for Attendance Control PWA
-const CACHE_NAME = 'attendance-control-v1';
+const CACHE_NAME = 'attendance-control-v2';
 const urlsToCache = [
     './',
     './index.html',
+    './user.html',
+    './admin.html',
     './style.css',
     './app.js',
     './export-addon.js',
+    './assets/logo.jpg',
+    './assets/background.jpg',
     'https://cdn.tailwindcss.com',
     'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap',
     'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',

@@ -1,0 +1,483 @@
+
+:root {
+    --transition-speed: 300ms;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark mode shadows */
+.dark {
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+/* ================================
+   Global Styles
+   ================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.dark ::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 5px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #4b5563;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}
+
+/* ================================
+   Tab Navigation
+   ================================ */
+
+.tab-button {
+    color: #6b7280;
+    border-bottom-color: transparent;
+    position: relative;
+    overflow: hidden;
+}
+
+.dark .tab-button {
+    color: #9ca3af;
+}
+
+.tab-button:hover {
+    color: #0ea5e9;
+    border-bottom-color: #e0f2fe;
+}
+
+.dark .tab-button:hover {
+    color: #38bdf8;
+    border-bottom-color: #1e3a8a;
+}
+
+.tab-button.active {
+    color: #0ea5e9;
+    border-bottom-color: #0ea5e9;
+}
+
+.dark .tab-button.active {
+    color: #38bdf8;
+    border-bottom-color: #38bdf8;
+}
+
+/* Tab button animation */
+.tab-button::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+    transform: scaleX(0);
+    transition: transform var(--transition-speed) ease;
+}
+
+.tab-button.active::after {
+    transform: scaleX(1);
+}
+
+/* ================================
+   Cards & Animations
+   ================================ */
+
+.stat-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+    transform: scale(0);
+    transition: transform 0.6s ease;
+}
+
+.stat-card:hover::before {
+    transform: scale(1);
+}
+
+/* ================================
+   QR Scanner Styles
+   ================================ */
+
+#qr-reader {
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+#qr-reader__dashboard {
+    display: none !important; /* Hide default controls */
+}
+
+#qr-reader__scan_region {
+    border-radius: 12px !important;
+}
+
+#qr-reader video {
+    border-radius: 12px;
+    object-fit: cover;
+}
+
+/* Scanner animation */
+@keyframes scan-line {
+    0% {
+        top: 0;
+    }
+    50% {
+        top: 100%;
+    }
+    100% {
+        top: 0;
+    }
+}
+
+.scanner-active::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #0ea5e9, transparent);
+    animation: scan-line 2s ease-in-out infinite;
+}
+
+/* ================================
+   Toast Notifications
+   ================================ */
+
+.toast-notification {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: white;
+    color: #1f2937;
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transform: translateX(400px);
+    transition: transform var(--transition-speed) ease;
+    z-index: 9999;
+    min-width: 300px;
+    max-width: 500px;
+    border-left: 4px solid #0ea5e9;
+}
+
+.dark .toast-notification {
+    background: #1f2937;
+    color: white;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+}
+
+.toast-notification.show {
+    transform: translateX(0);
+}
+
+.toast-notification.success {
+    border-left-color: #10b981;
+}
+
+.toast-notification.error {
+    border-left-color: #ef4444;
+}
+
+.toast-notification.warning {
+    border-left-color: #f59e0b;
+}
+
+.toast-notification.info {
+    border-left-color: #3b82f6;
+}
+
+/* ================================
+   Employee Card Styles
+   ================================ */
+
+.employee-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    transition: all var(--transition-speed) ease;
+}
+
+.dark .employee-card {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+.employee-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.dark .employee-card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+
+/* ================================
+   Table Styles
+   ================================ */
+
+table tbody tr {
+    transition: background-color var(--transition-speed) ease;
+}
+
+table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.dark table tbody tr:hover {
+    background-color: #374151;
+}
+
+/* ================================
+   Pulse Animation
+   ================================ */
+
+@keyframes pulse-dot {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(1.1);
+    }
+}
+
+.animate-pulse {
+    animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ================================
+   Fade In Animation
+   ================================ */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* ================================
+   Badge Styles
+   ================================ */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.badge-entrada {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.dark .badge-entrada {
+    background-color: #064e3b;
+    color: #6ee7b7;
+}
+
+.badge-salida_almuerzo {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.dark .badge-salida_almuerzo {
+    background-color: #78350f;
+    color: #fcd34d;
+}
+
+.badge-regreso_almuerzo {
+    background-color: #dbeafe;
+    color: #1e3a8a;
+}
+
+.dark .badge-regreso_almuerzo {
+    background-color: #1e3a8a;
+    color: #93c5fd;
+}
+
+.badge-salida_final {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.dark .badge-salida_final {
+    background-color: #7f1d1d;
+    color: #fca5a5;
+}
+
+/* ================================
+   Loading Spinner
+   ================================ */
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #e5e7eb;
+    border-top-color: #0ea5e9;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+.dark .spinner {
+    border-color: #374151;
+    border-top-color: #38bdf8;
+}
+
+/* ================================
+   Glass Morphism Effect
+   ================================ */
+
+.glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark .glass {
+    background: rgba(31, 41, 55, 0.7);
+    border: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+/* ================================
+   Responsive Design
+   ================================ */
+
+@media (max-width: 768px) {
+    .toast-notification {
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
+        min-width: auto;
+    }
+    
+    .stat-card {
+        margin-bottom: 0;
+    }
+}
+
+/* ================================
+   Print Styles
+   ================================ */
+
+@media print {
+    nav,
+    .tab-button,
+    button,
+    .no-print {
+        display: none !important;
+    }
+    
+    .tab-content {
+        display: block !important;
+    }
+    
+    body {
+        background: white !important;
+    }
+}
+
+/* ================================
+   Accessibility
+   ================================ */
+
+.focus-visible:focus {
+    outline: 2px solid #0ea5e9;
+    outline-offset: 2px;
+}
+
+.dark .focus-visible:focus {
+    outline-color: #38bdf8;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .tab-button {
+        border-width: 2px;
+    }
+    
+    button {
+        border: 2px solid currentColor;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

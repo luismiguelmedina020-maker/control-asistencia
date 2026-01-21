@@ -9,6 +9,9 @@ const SCHEDULE_CONFIG = {
 // Tolerancia en minutos para registros de asistencia
 const TOLERANCE_MINUTES = 5;
 
+// Configuración de zona horaria de Perú
+const PERU_TIMEZONE = 'America/Lima'; // UTC-5
+
 const STORAGE_KEYS = {
     employees: 'attendance_employees',
     records: 'attendance_records',
@@ -27,23 +30,45 @@ let currentTab = 'dashboard';
 // ================================
 
 /**
- * Get current date in YYYY-MM-DD format
+ * Get current date/time in Peru timezone
+ */
+function getPeruTime() {
+    return new Date(new Date().toLocaleString('en-US', { timeZone: PERU_TIMEZONE }));
+}
+
+/**
+ * Get current date in YYYY-MM-DD format (Peru timezone)
  */
 function getCurrentDate() {
-    const now = new Date();
+    const now = getPeruTime();
     return now.toISOString().split('T')[0];
 }
 
 /**
- * Get current time in HH:MM:SS format
+ * Get current time in HH:MM:SS format (Peru timezone)
  */
 function getCurrentTime() {
-    const now = new Date();
+    const now = getPeruTime();
     return now.toTimeString().split(' ')[0];
 }
 
 /**
- * Format time for display (HH:MM AM/PM)
+ * Format date in Spanish (Peru timezone)
+ * Example: "Lunes, 19 de enero de 2026"
+ */
+function formatPeruDate(date) {
+    const peruDate = new Date(date.toLocaleString('en-US', { timeZone: PERU_TIMEZONE }));
+    return peruDate.toLocaleDateString('es-PE', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: PERU_TIMEZONE
+    });
+}
+
+/**
+ * Format time for display (HH:MM AM/PM) in Peru timezone
  */
 function formatTime(timeString) {
     const [hours, minutes] = timeString.split(':');
@@ -242,6 +267,35 @@ async function deleteEmployee(employeeId) {
 }
 
 /**
+ * Calculate lateness count for an employee
+ * A lateness is when entrada is recorded after 08:00 AM
+ */
+function calculateLateness(employeeId) {
+    const records = getAttendanceRecords();
+    const employees = getEmployees();
+    const employee = employees.find(emp => emp.employeeId === employeeId);
+
+    if (!employee) return 0;
+
+    // Get all entrada (entry) records for this employee
+    const entryRecords = records.filter(record =>
+        record.employeeId === employeeId && record.eventType === 'entrada'
+    );
+
+    // Count how many times they were late (after 08:00)
+    const lateCount = entryRecords.filter(record => {
+        const [hours, minutes] = record.eventTime.split(':').map(Number);
+        const timeInMinutes = hours * 60 + minutes;
+        const scheduledTime = 8 * 60; // 08:00 = 480 minutes
+
+        // Late if arrived after 08:00
+        return timeInMinutes > scheduledTime;
+    }).length;
+
+    return lateCount;
+}
+
+/**
  * Calculate days of absence for an employee
  * Returns the number of working days without entry record
  */
@@ -301,6 +355,7 @@ function showEmployeeProfile(employeeId) {
     const records = getAttendanceRecords();
     const employeeRecords = records.filter(r => r.employeeId === employeeId);
     const absenceDays = calculateAbsenceDays(employeeId);
+    const latenessCount = calculateLateness(employeeId);
 
     // Get unique attended days
     const attendedDays = new Set();
@@ -351,7 +406,7 @@ function showEmployeeProfile(employeeId) {
             </div>
             
             <!-- Statistics Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <!-- Total Records -->
                 <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-4 text-white">
                     <div class="flex items-center justify-between mb-2">
@@ -383,6 +438,17 @@ function showEmployeeProfile(employeeId) {
                     </div>
                     <p class="text-2xl font-bold">${absenceDays}</p>
                     <p class="text-xs opacity-90">Días Faltados</p>
+                </div>
+                
+                <!-- Lateness Count -->
+                <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-4 text-white">
+                    <div class="flex items-center justify-between mb-2">
+                        <svg class="w-8 h-8 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <p class="text-2xl font-bold">${latenessCount}</p>
+                    <p class="text-xs opacity-90">Tardanzas</p>
                 </div>
             </div>
             
@@ -580,87 +646,184 @@ function closeQRModal() {
 /**
  * Render employees list
  */
-function renderEmployeesList(searchFilter = '') {
-    const employees = getEmployees();
+async function renderEmployeesList(searchFilter = '') {
     const employeesList = document.getElementById('employeesList');
     const employeeCount = document.getElementById('employeeCount');
 
-    employeeCount.textContent = employees.length;
+    if (!employeesList) return;
 
-    if (employees.length === 0) {
-        employeesList.innerHTML = `
-            <div class="text-center py-12 text-gray-500 dark:text-gray-400">
-                <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                </svg>
-                <p>No hay empleados registrados</p>
-            </div>
-        `;
-        return;
-    }
+    // Show loading state
+    employeesList.innerHTML = `
+        <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+            <svg class="w-16 h-16 mx-auto mb-4 opacity-50 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <p>Cargando empleados...</p>
+        </div>
+    `;
 
-    // Apply search filter if provided
-    let filteredEmployees = employees;
-    if (searchFilter && searchFilter.trim() !== '') {
-        const search = searchFilter.toLowerCase().trim();
-        filteredEmployees = employees.filter(emp =>
-            emp.employeeId.toLowerCase().includes(search) ||
-            emp.name.toLowerCase().includes(search)
-        );
-    }
+    try {
+        // Fetch employees from Supabase
+        let employees = [];
 
-    if (filteredEmployees.length === 0) {
-        employeesList.innerHTML = `
-            <div class="text-center py-12 text-gray-500 dark:text-gray-400">
-                <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                </svg>
-                <p>No se encontraron empleados con "${searchFilter}"</p>
-            </div>
-        `;
-        return;
-    }
+        if (supabaseClient) {
+            const { data, error } = await supabaseClient
+                .from('employees')
+                .select('*')
+                .order('created_at', { ascending: false });
 
-    employeesList.innerHTML = filteredEmployees.map(emp => {
-        const absenceDays = calculateAbsenceDays(emp.employeeId);
-        return `
-        <div class="employee-card fade-in flex items-center justify-between cursor-pointer hover:shadow-lg" onclick="showEmployeeProfile('${emp.employeeId}')">
-            <div class="flex items-center space-x-4 flex-1">
-                <div class="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg flex-shrink-0">
-                    ${emp.name.charAt(0).toUpperCase()}
+            if (error) {
+                console.error('Error fetching employees:', error);
+                showToast('Error al cargar empleados desde la base de datos', 'error');
+                // Fallback to localStorage
+                employees = getEmployees();
+            } else {
+                // Transform Supabase data to match local format
+                employees = data.map(emp => ({
+                    id: emp.id,
+                    employeeId: emp.employee_id,
+                    name: emp.name,
+                    dni: emp.dni,
+                    position: emp.position,
+                    area: emp.area,
+                    phone: emp.phone,
+                    createdAt: emp.created_at,
+                    active: emp.active !== false
+                }));
+                console.log(`✓ Loaded ${employees.length} employees from Supabase`);
+            }
+        } else {
+            // Fallback to localStorage if Supabase not available
+            employees = getEmployees();
+            console.log(`Using localStorage: ${employees.length} employees`);
+        }
+
+        employeeCount.textContent = employees.length;
+
+        if (employees.length === 0) {
+            employeesList.innerHTML = `
+                <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <p>No hay empleados registrados</p>
                 </div>
-                <div class="flex-1 min-w-0">
-                    <h3 class="font-semibold text-gray-800 dark:text-white">${emp.name}</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">ID: ${emp.employeeId} • ${emp.position}</p>
-                    <p class="text-xs text-gray-400 dark:text-gray-500">${emp.area || 'Sin área'} • ${emp.phone || 'Sin teléfono'}</p>
-                    <div class="mt-1 flex items-center space-x-3">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
-                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                            ${absenceDays} días faltados
-                        </span>
+            `;
+            return;
+        }
+
+        // Apply search filter if provided
+        let filteredEmployees = employees;
+        if (searchFilter && searchFilter.trim() !== '') {
+            const search = searchFilter.toLowerCase().trim();
+            filteredEmployees = employees.filter(emp =>
+                emp.employeeId.toLowerCase().includes(search) ||
+                emp.name.toLowerCase().includes(search) ||
+                (emp.dni && emp.dni.toLowerCase().includes(search))
+            );
+        }
+
+        if (filteredEmployees.length === 0) {
+            employeesList.innerHTML = `
+                <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <p>No se encontraron empleados con "${searchFilter}"</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Fetch all attendance records from Supabase for lateness calculation
+        let allAttendanceRecords = [];
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('attendance_records')
+                    .select('*')
+                    .eq('event_type', 'entrada');
+
+                if (data && !error) {
+                    allAttendanceRecords = data;
+                }
+            } catch (err) {
+                console.error('Error fetching attendance records:', err);
+            }
+        }
+
+        // Helper function to calculate lateness for an employee
+        const calculateLatenessForEmployee = (employeeId) => {
+            const entryRecords = allAttendanceRecords.filter(r => r.employee_id === employeeId);
+            return entryRecords.filter(record => {
+                const timeStr = record.event_time || '';
+                if (!timeStr) return false;
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                if (isNaN(hours) || isNaN(minutes)) return false;
+                const timeInMinutes = hours * 60 + minutes;
+                return timeInMinutes > 480; // After 08:00
+            }).length;
+        };
+
+        employeesList.innerHTML = filteredEmployees.map(emp => {
+            const absenceDays = calculateAbsenceDays(emp.employeeId);
+            const latenessCount = calculateLatenessForEmployee(emp.employeeId);
+            return `
+            <div class="employee-card fade-in flex items-center justify-between cursor-pointer hover:shadow-lg" onclick="showEmployeeProfile('${emp.employeeId}')">
+                <div class="flex items-center space-x-4 flex-1">
+                    <div class="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg flex-shrink-0">
+                        ${emp.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-semibold text-gray-800 dark:text-white">${emp.name}</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">ID: ${emp.employeeId} • ${emp.position}</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500">${emp.area || 'Sin área'} • ${emp.phone || 'Sin teléfono'}</p>
+                        <div class="mt-1 flex items-center space-x-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                                ${absenceDays} días faltados
+                            </span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                ${latenessCount} tardanzas
+                            </span>
+                        </div>
                     </div>
                 </div>
+                <div class="flex items-center space-x-2 flex-shrink-0">
+                    <button onclick="event.stopPropagation(); generateQRCode('${emp.employeeId}')" 
+                        class="p-2 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors"
+                        title="Generar QR">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="event.stopPropagation(); deleteEmployee('${emp.employeeId}')" 
+                        class="p-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+                        title="Eliminar">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
-            <div class="flex items-center space-x-2 flex-shrink-0">
-                <button onclick="event.stopPropagation(); generateQRCode('${emp.employeeId}')" 
-                    class="p-2 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors"
-                    title="Generar QR">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
-                    </svg>
-                </button>
-                <button onclick="event.stopPropagation(); deleteEmployee('${emp.employeeId}')" 
-                    class="p-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
-                    title="Eliminar">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                    </svg>
-                </button>
+        `}).join('');
+
+    } catch (error) {
+        console.error('Error rendering employees list:', error);
+        employeesList.innerHTML = `
+            <div class="text-center py-12 text-red-500">
+                <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <p>Error al cargar la lista de empleados</p>
             </div>
-        </div>
-    `}).join('');
+        `;
+    }
 }
 
 /**
@@ -678,8 +841,43 @@ function searchEmployees(query) {
  * Record attendance
  */
 async function recordAttendance(employeeId) {
-    const employees = getEmployees();
-    const employee = employees.find(emp => emp.employeeId === employeeId);
+    // Try to find employee in Supabase first
+    let employee = null;
+
+    if (supabaseClient) {
+        try {
+            const { data, error } = await supabaseClient
+                .from('employees')
+                .select('*')
+                .eq('employee_id', employeeId)
+                .single();
+
+            if (data && !error) {
+                employee = {
+                    id: data.id,
+                    employeeId: data.employee_id,
+                    name: data.name,
+                    dni: data.dni,
+                    position: data.position,
+                    area: data.area,
+                    phone: data.phone
+                };
+                console.log('✓ Employee found in Supabase:', employee.name);
+            }
+        } catch (err) {
+            console.log('Could not find employee in Supabase, trying localStorage');
+        }
+    }
+
+    // Fallback to localStorage if not found in Supabase
+    if (!employee) {
+        const employees = getEmployees();
+        const localEmployee = employees.find(emp => emp.employeeId === employeeId);
+        if (localEmployee) {
+            employee = localEmployee;
+            console.log('✓ Employee found in localStorage:', employee.name);
+        }
+    }
 
     if (!employee) {
         showToast('Empleado no encontrado', 'error');
@@ -789,33 +987,93 @@ function renderAttendanceTable() {
  * Update dashboard statistics
  */
 function updateDashboard() {
-    const employees = getEmployees();
-    const todayRecords = getTodayAttendance();
+    console.log('[Dashboard] Updating dashboard statistics');
 
-    // Total employees
-    document.getElementById('stat-total').textContent = employees.length;
-
-    // Present today (employees with at least one record today)
-    const presentToday = new Set(todayRecords.map(r => r.employeeId)).size;
-    document.getElementById('stat-present').textContent = presentToday;
-
-    // Total records today
-    document.getElementById('stat-records').textContent = todayRecords.length;
-
-    // Last activity
-    const lastActivity = document.getElementById('stat-last');
-    if (todayRecords.length > 0) {
-        const sorted = [...todayRecords].sort((a, b) => b.eventTime.localeCompare(a.eventTime));
-        lastActivity.textContent = formatTime(sorted[0].eventTime);
-    } else {
-        lastActivity.textContent = 'Sin registros';
+    // Update current date with Peru timezone
+    const today = getCurrentDate();
+    const peruDate = getPeruTime();
+    const todayDateEl = document.getElementById('todayDate');
+    if (todayDateEl) {
+        todayDateEl.textContent = formatPeruDate(peruDate);
     }
 
-    // Update today's date
-    document.getElementById('todayDate').textContent = formatDate(getCurrentDate());
+    // Check if Supabase is available
+    if (!supabaseClient) {
+        console.warn('Supabase not available, using localStorage');
+        // Fallback to localStorage
+        const employees = getEmployees();
+        const todayRecords = getTodayAttendance();
 
-    // Render attendance table
-    renderAttendanceTable();
+        document.getElementById('stat-total').textContent = employees.length;
+        document.getElementById('stat-present').textContent = new Set(todayRecords.map(r => r.employeeId)).size;
+        document.getElementById('stat-records').textContent = todayRecords.length;
+
+        if (todayRecords.length > 0) {
+            const lastRecord = todayRecords[todayRecords.length - 1];
+            document.getElementById('stat-last').textContent = formatTime(lastRecord.eventTime);
+        }
+
+        renderAttendanceTable(todayRecords);
+        return;
+    }
+
+    // Fetch data from Supabase
+    Promise.all([
+        supabaseClient.from('employees').select('*'),
+        supabaseClient.from('attendance_records').select('*, employees(name, dni, position)')
+            .eq('event_date', today)
+    ]).then(([employeesResult, attendanceResult]) => {
+        const employees = employeesResult.data || [];
+        const todaysRecords = attendanceResult.data || [];
+
+        // Update stats
+        document.getElementById('stat-total').textContent = employees.length;
+
+        // Count unique employees who attended today
+        const uniqueEmployeesToday = new Set(todaysRecords.map(r => r.employee_id));
+        document.getElementById('stat-present').textContent = uniqueEmployeesToday.size;
+
+        // Total records today
+        document.getElementById('stat-records').textContent = todaysRecords.length;
+
+        // Last activity
+        if (todaysRecords.length > 0) {
+            const lastRecord = todaysRecords[todaysRecords.length - 1];
+            const lastTime = formatTime(lastRecord.event_time);
+            document.getElementById('stat-last').textContent = lastTime;
+        } else {
+            document.getElementById('stat-last').textContent = 'Sin registros';
+        }
+
+        // Transform Supabase data to local format for rendering
+        const formattedRecords = todaysRecords.map(record => ({
+            id: record.id,
+            employeeId: record.employee_id,
+            employeeName: record.employees?.name || 'Desconocido',
+            employeePosition: record.employees?.position || 'N/A',
+            eventType: record.event_type,
+            eventDate: record.event_date,
+            eventTime: record.event_time
+        }));
+
+        // Render attendance table
+        renderAttendanceTable(formattedRecords);
+
+        console.log(`[Dashboard] Loaded ${employees.length} employees, ${todaysRecords.length} attendance records`);
+    }).catch(error => {
+        console.error('[Dashboard] Error loading dashboard data:', error);
+        showToast('Error al cargar datos del dashboard', 'error');
+    });
+}
+
+
+
+/**
+ * Refresh dashboard data
+ */
+function refreshDashboard() {
+    showToast('Actualizando dashboard...', 'info');
+    updateDashboard();
 }
 
 // ================================
@@ -1399,7 +1657,9 @@ window.exportEmployeesToExcel = exportEmployeesToExcel;
 window.showEmployeeProfile = showEmployeeProfile;
 window.closeProfileModal = closeProfileModal;
 window.calculateAbsenceDays = calculateAbsenceDays;
+window.calculateLateness = calculateLateness;
 window.searchEmployees = searchEmployees;
+window.refreshDashboard = refreshDashboard;
 
 // Admin logout function
 function logoutAdmin() {

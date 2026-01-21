@@ -7,6 +7,13 @@
     <title>Mi Perfil - Municipalidad Provincial de Chincheros</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- QRCode.js for QR generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
 
@@ -31,12 +38,32 @@
     </script>
 
     <style>
+        body {
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('assets/background-user.jpg') center/cover no-repeat fixed;
+            filter: blur(8px) brightness(0.7);
+            z-index: -1;
+        }
+
         .gradient-header {
-            background: linear-gradient(135deg, #2E2E6E 0%, #008751 100%);
+            background: linear-gradient(135deg, rgba(46, 46, 110, 0.95) 0%, rgba(0, 135, 81, 0.95) 100%);
+            backdrop-filter: blur(10px);
         }
 
         .card-shadow {
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
         }
 
         .btn-action {
@@ -49,7 +76,7 @@
     </style>
 </head>
 
-<body class="font-sans bg-gray-100 min-h-screen">
+<body class="font-sans min-h-screen">
     <!-- Header -->
     <header class="gradient-header text-white shadow-lg">
         <div class="max-w-4xl mx-auto px-4 py-4">
@@ -160,6 +187,38 @@
             </div>
         </div>
 
+        <!-- My QR Code Card -->
+        <div
+            class="bg-gradient-to-br from-municipal-blue to-municipal-green rounded-2xl card-shadow p-6 mb-6 text-white">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold flex items-center">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z">
+                        </path>
+                    </svg>
+                    Mi Código QR Personal
+                </h3>
+            </div>
+            <p class="text-white/80 text-sm mb-4">
+                Este es tu código QR personal para registrar tu asistencia. Muéstraselo al administrador para que lo
+                escanee.
+            </p>
+            <div class="bg-white rounded-xl p-4 text-center">
+                <div id="userQrCodeContainer" class="flex justify-center mb-3"></div>
+                <p class="text-gray-600 text-sm font-medium">DNI: <span id="qrCodeId"
+                        class="text-municipal-blue font-bold"></span></p>
+            </div>
+            <button onclick="downloadMyQR()"
+                class="btn-action w-full mt-4 py-3 bg-white/20 hover:bg-white/30 text-white rounded-lg font-medium flex items-center justify-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                <span>Descargar QR</span>
+            </button>
+        </div>
+
         <!-- Today's Attendance Status -->
         <div class="bg-white rounded-2xl card-shadow p-6 mb-6">
             <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
@@ -206,14 +265,17 @@
         </div>
     </main>
 
+    <!-- QRCode.js for QR generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
-        // Config
-        const SUPABASE_URL = 'https://fmxflzgicomsdcosehxx.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZteGZsemdpY29tc2Rjb3NlaHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1OTU3MDksImV4cCI6MjA4NDE3MTcwOX0.jLuERsAkwkJPkSQXWMDU8hlgOqY3Z6vrnIyDxEEca48';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // Global variables
+        let currentUser = null;
+        let isEditMode = false;
+        let db = null;
 
         const SCHEDULE_CONFIG = {
             entrada: { time: '08:00', label: 'Entrada', window: [6, 0, 11, 0] },
@@ -222,23 +284,64 @@
             salida_final: { time: '17:30', label: 'Salida', window: [16, 1, 19, 0] }
         };
 
-        let currentUser = null;
-        let isEditMode = false;
+        // Calculate lateness count
+        function calculateLateness(employeeId, allRecords) {
+            if (!allRecords) return 0;
 
-        // Check auth
-        function checkAuth() {
-            const userData = sessionStorage.getItem('currentUser');
-            if (!userData) {
-                window.location.href = 'index.html';
-                return;
-            }
-            currentUser = JSON.parse(userData);
-            displayUserInfo();
-            loadTodayRecords();
-            loadAttendanceHistory();
+            // Get all entrada (entry) records for this employee
+            const entryRecords = allRecords.filter(record =>
+                record.employee_id === employeeId && record.event_type === 'entrada'
+            );
+
+            // Count how many times they were late (after 08:00)
+            const lateCount = entryRecords.filter(record => {
+                const timeStr = record.event_time || '';
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                const timeInMinutes = hours * 60 + minutes;
+                const scheduledTime = 8 * 60; // 08:00 = 480 minutes
+
+                // Late if arrived after 08:00
+                return timeInMinutes > scheduledTime;
+            }).length;
+
+            return lateCount;
+        }
+
+        // UI Functions - Defined FIRST so they are available even if Supabase fails
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            document.getElementById('viewMode').classList.toggle('hidden', isEditMode);
+            document.getElementById('editMode').classList.toggle('hidden', !isEditMode);
+            document.getElementById('editBtn').textContent = isEditMode ? 'Cancelar' : 'Editar Perfil';
+        }
+
+        function showStatus(message, type) {
+            const el = document.getElementById('statusMessage');
+            const text = document.getElementById('statusText');
+            text.textContent = message;
+            el.className = `fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-white rounded-xl shadow-2xl p-4 border-l-4 ${type === 'success' ? 'border-municipal-green' : 'border-red-500'}`;
+            el.classList.remove('hidden');
+            setTimeout(() => el.classList.add('hidden'), 3000);
+        }
+
+        function formatDate(dateStr) {
+            const [y, m, d] = dateStr.split('-');
+            const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            const date = new Date(dateStr);
+            return `${days[date.getDay()]} ${d}/${m}/${y}`;
+        }
+
+        function updateClock() {
+            document.getElementById('currentTime').textContent = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function logout() {
+            sessionStorage.clear();
+            window.location.href = 'index.html';
         }
 
         function displayUserInfo() {
+            if (!currentUser) return;
             document.getElementById('userAvatar').textContent = currentUser.name ? currentUser.name.charAt(0).toUpperCase() : '?';
             document.getElementById('userName').textContent = currentUser.name || 'Sin nombre';
             document.getElementById('userPosition').textContent = currentUser.position || 'Sin cargo asignado';
@@ -254,18 +357,13 @@
             document.getElementById('editPosition').value = currentUser.position || '';
         }
 
-        function toggleEditMode() {
-            isEditMode = !isEditMode;
-            document.getElementById('viewMode').classList.toggle('hidden', isEditMode);
-            document.getElementById('editMode').classList.toggle('hidden', !isEditMode);
-            document.getElementById('editBtn').textContent = isEditMode ? 'Cancelar' : 'Editar Perfil';
-        }
-
+        // Logic Functions that depend on Supabase
         async function loadTodayRecords() {
+            if (!db) return;
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('todayDate').textContent = formatDate(today);
 
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('attendance_records')
                 .select('*')
                 .eq('employee_id', currentUser.employee_id)
@@ -293,7 +391,8 @@
         }
 
         async function loadAttendanceHistory() {
-            const { data, error } = await supabase
+            if (!db) return;
+            const { data, error } = await db
                 .from('attendance_records')
                 .select('*')
                 .eq('employee_id', currentUser.employee_id)
@@ -308,16 +407,50 @@
                 return;
             }
 
-            // Group by date
-            const grouped = data.reduce((acc, record) => {
-                if (!acc[record.event_date]) acc[record.event_date] = [];
-                acc[record.event_date].push(record);
-                return acc;
-            }, {});
+            // Calculate lateness count from all records
+            const latenessCount = calculateLateness(currentUser.employee_id, data);
 
-            container.innerHTML = Object.entries(grouped).map(([date, records]) => `
+            // Display lateness count in a badge at the top of history section
+            const latenessBadge = latenessCount > 0 ? `
+                <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span class="text-sm font-medium text-orange-700">
+                            Total de tardanzas: <strong>${latenessCount}</strong> ${latenessCount === 1 ? 'vez' : 'veces'}
+                        </span>
+                    </div>
+                </div>
+            ` : '';
+
+            // Group by date
+            const groupedByDate = {};
+            data.forEach(record => {
+                if (!groupedByDate[record.event_date]) {
+                    groupedByDate[record.event_date] = [];
+                }
+                groupedByDate[record.event_date].push(record);
+            });
+
+            // Render grouped records
+            container.innerHTML = latenessBadge + Object.keys(groupedByDate).map(date => {
+                const records = groupedByDate[date];
+
+                // Format date in Spanish with Peru timezone
+                const dateObj = new Date(date + 'T00:00:00-05:00'); // Force Peru timezone
+                const options = {
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    timeZone: 'America/Lima'
+                };
+                const formattedDate = dateObj.toLocaleDateString('es-PE', options);
+
+                return `
                 <div class="bg-gray-50 rounded-lg p-3">
-                    <p class="text-sm font-medium text-gray-700 mb-2">${formatDate(date)}</p>
+                    <p class="text-sm font-medium text-gray-700 mb-2">${formattedDate}</p>
                     <div class="flex flex-wrap gap-2">
                         ${records.map(r => `
                             <span class="text-xs px-2 py-1 bg-municipal-green/10 text-municipal-green rounded-full">
@@ -326,17 +459,115 @@
                         `).join('')}
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
+        }
+
+        // QR Code Functions - Using API for reliability
+        function generateMyQR() {
+            if (!currentUser || !currentUser.employee_id) {
+                console.error('No employee ID available for QR');
+                return;
+            }
+
+            const container = document.getElementById('userQrCodeContainer');
+            const qrCodeEl = document.getElementById('qrCodeId');
+
+            // Clear previous QR
+            container.innerHTML = '';
+
+            // Set ID display
+            qrCodeEl.textContent = currentUser.employee_id;
+
+            // Generate QR using API (more reliable than JS library)
+            const qrData = currentUser.employee_id;
+            const qrSize = 200;
+
+            // Using QR Server API - always works
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(qrData)}&margin=10`;
+
+            // Create image element
+            const img = document.createElement('img');
+            img.src = qrUrl;
+            img.alt = `QR Code for ${qrData}`;
+            img.className = 'mx-auto';
+            img.style.width = qrSize + 'px';
+            img.style.height = qrSize + 'px';
+
+            // Add error handling
+            img.onerror = function () {
+                container.innerHTML = '<p class="text-red-500 text-sm">Error al generar QR. Intenta recargar la página.</p>';
+            };
+
+            img.onload = function () {
+                console.log('✓ QR Code generado exitosamente');
+            };
+
+            container.appendChild(img);
+        }
+
+        function downloadMyQR() {
+            if (!currentUser || !currentUser.employee_id) return;
+
+            const qrData = currentUser.employee_id;
+            const qrSize = 400; // Bigger for download
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(qrData)}&margin=10`;
+
+            // Open in new tab for easy download
+            window.open(qrUrl, '_blank');
+        }
+
+
+
+        // Initialization
+        function init() {
+            updateClock();
+            setInterval(updateClock, 1000);
+
+            // Check session storage FIRST
+            const userData = sessionStorage.getItem('currentUser');
+            if (!userData) {
+                window.location.href = 'index.html';
+                return;
+            }
+            currentUser = JSON.parse(userData);
+            displayUserInfo();
+
+            // Generate QR code
+            generateMyQR();
+
+            // Try to connect to Supabase
+            try {
+                if (window.supabase) {
+                    const SUPABASE_URL = 'https://fmxflzgicomsdcosehxx.supabase.co';
+                    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZteGZsemdpY29tc2Rjb3NlaHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1OTU3MDksImV4cCI6MjA4NDE3MTcwOX0.jLuERsAkwkJPkSQXWMDU8hlgOqY3Z6vrnIyDxEEca48';
+                    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+                    // Load data if connection successful
+                    loadTodayRecords();
+                    loadAttendanceHistory();
+                } else {
+                    console.error('Supabase library not loaded');
+                    showStatus('Error: No se pudo conectar con el servidor', 'error');
+                }
+            } catch (e) {
+                console.error('Supabase initialization error:', e);
+                showStatus('Error de conexión. Algunas funciones no estarán disponibles.', 'error');
+            }
         }
 
         // Edit form submission
         document.getElementById('editForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!db) {
+                showStatus('No hay conexión con el servidor', 'error');
+                return;
+            }
 
             const phone = document.getElementById('editPhone').value.trim();
 
             try {
-                const { error } = await supabase
+                const { error } = await db
                     .from('employees')
                     .update({ phone: phone })
                     .eq('employee_id', currentUser.employee_id);
@@ -355,35 +586,8 @@
             }
         });
 
-        function showStatus(message, type) {
-            const el = document.getElementById('statusMessage');
-            const text = document.getElementById('statusText');
-            text.textContent = message;
-            el.className = `fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-white rounded-xl shadow-2xl p-4 border-l-4 ${type === 'success' ? 'border-municipal-green' : 'border-red-500'}`;
-            el.classList.remove('hidden');
-            setTimeout(() => el.classList.add('hidden'), 3000);
-        }
-
-        function formatDate(dateStr) {
-            const [y, m, d] = dateStr.split('-');
-            const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-            const date = new Date(dateStr);
-            return `${days[date.getDay()]} ${d}/${m}/${y}`;
-        }
-
-        function updateClock() {
-            document.getElementById('currentTime').textContent = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-        }
-
-        function logout() {
-            sessionStorage.clear();
-            window.location.href = 'index.html';
-        }
-
-        // Init
-        checkAuth();
-        updateClock();
-        setInterval(updateClock, 1000);
+        // Run initialization
+        init();
     </script>
 </body>
 
